@@ -82,7 +82,6 @@ fun LinkoraRoot(shareIntent: Intent?, onShareConsumed: () -> Unit) {
     var editing by remember { mutableStateOf<LinkItem?>(null) }
     var adding by remember { mutableStateOf(false) }
     var catManager by remember { mutableStateOf(false) }
-    var viewingImage by remember { mutableStateOf<File?>(null) }
 
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/zip")
@@ -214,8 +213,7 @@ fun LinkoraRoot(shareIntent: Intent?, onShareConsumed: () -> Unit) {
             onFav = { vm.toggleFav(fresh) },
             onDone = { vm.setDone(fresh, !fresh.done); detail = null },
             onEdit = { detail = null; editing = fresh },
-            onDelete = { vm.delete(fresh); detail = null },
-            onViewImage = { f -> detail = null; viewingImage = f }
+            onDelete = { vm.delete(fresh); detail = null }
         )
     }
 
@@ -247,8 +245,6 @@ fun LinkoraRoot(shareIntent: Intent?, onShareConsumed: () -> Unit) {
             onMove = vm::moveCat
         )
     }
-
-    viewingImage?.let { f -> ImageViewer(f) { viewingImage = null } }
 }
 
 /** Versión mostrada junto al logo. Un único sitio que tocar en cada release. */

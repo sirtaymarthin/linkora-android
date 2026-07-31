@@ -44,8 +44,7 @@ fun DetailSheet(
     onFav: () -> Unit,
     onDone: () -> Unit,
     onEdit: () -> Unit,
-    onDelete: () -> Unit,
-    onViewImage: (File) -> Unit
+    onDelete: () -> Unit
 ) {
     val ctx = LocalContext.current
     val brand = if (item.isFile) Brands.fileBrand(item.fileType) else Brands.byKey(item.brand)
@@ -104,7 +103,7 @@ fun DetailSheet(
             Spacer(Modifier.height(16.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Button(
-                    onClick = { openItem(ctx, item, onViewImage) },
+                    onClick = { openItem(ctx, item) },
                     modifier = Modifier.weight(1f).height(50.dp),
                     shape = MaterialTheme.shapes.small
                 ) {
@@ -290,45 +289,11 @@ fun FlowRowSimple(content: @Composable () -> Unit) {
     ) { content() }
 }
 
-/* ═════════════════════ VISOR DE IMÁGENES ═════════════════════ */
-@Composable
-fun ImageViewer(file: File, onClose: () -> Unit) {
-    var scale by remember { mutableFloatStateOf(1f) }
-    var offsetX by remember { mutableFloatStateOf(0f) }
-    var offsetY by remember { mutableFloatStateOf(0f) }
-
-    Surface(color = Color.Black, modifier = Modifier.fillMaxSize()) {
-        Box(Modifier.fillMaxSize()) {
-            AsyncImage(
-                model = file, contentDescription = null, contentScale = ContentScale.Fit,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer(scaleX = scale, scaleY = scale, translationX = offsetX, translationY = offsetY)
-                    .pointerInput(Unit) {
-                        detectTransformGestures { _, pan, zoom, _ ->
-                            scale = (scale * zoom).coerceIn(1f, 6f)
-                            if (scale > 1f) { offsetX += pan.x; offsetY += pan.y }
-                            else { offsetX = 0f; offsetY = 0f }
-                        }
-                    }
-            )
-            IconButton(
-                onClick = onClose,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(14.dp)
-                    .clip(RoundedCornerShape(50))
-                    .background(Color.Black.copy(alpha = 0.5f))
-            ) { Icon(Icons.Outlined.Close, "Cerrar", tint = Color.White) }
-        }
-    }
-}
-
 /* ═════════════════════ ACCIONES DEL SISTEMA ═════════════════════ */
 private fun uriFor(ctx: Context, file: File) =
     FileProvider.getUriForFile(ctx, "${ctx.packageName}.files", file)
 
-fun openItem(ctx: Context, item: LinkItem, onViewImage: (File) -> Unit) {
+fun openItem(ctx: Context, item: LinkItem) {
     if (!item.isFile) {
         item.url?.let {
             runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(it))) }
@@ -337,7 +302,6 @@ fun openItem(ctx: Context, item: LinkItem, onViewImage: (File) -> Unit) {
     }
     val f = Files.resolve(ctx, item.filePath) ?: return
     // Las imágenes se ven dentro de la app; el resto lo abre el visor del sistema.
-    if (item.fileType?.startsWith("image/") == true) { onViewImage(f); return }
     runCatching {
         val i = Intent(Intent.ACTION_VIEW)
             .setDataAndType(uriFor(ctx, f), item.fileType ?: "*/*")

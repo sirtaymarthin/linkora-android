@@ -71,169 +71,147 @@ fun HomeScreen(
     val density = LocalDensity.current
     val threshold = with(density) { 72.dp.toPx() }
 
-    Box(
-        Modifier
-            .fillMaxSize()
-            .pointerInput(catIds, ui.cur) {
-                var startX = 0f
-                detectHorizontalDragGestures(
-                    onDragStart = { startX = it.x },
-                    onDragEnd = {},
-                    onDragCancel = {},
-                    onHorizontalDrag = { change, _ ->
-                        val total = change.position.x - startX
-                        if (abs(total) > threshold) {
-                            val next = if (total < 0) curIdx + 1 else curIdx - 1
-                            if (next in catIds.indices && catIds[next] != ui.cur) {
-                                onSelectCat(catIds[next])
-                            }
-                            startX = change.position.x
-                        }
-                    }
-                )
-            }
+
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(2),
+        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(GRID_GAP),
+        verticalArrangement = Arrangement.spacedBy(GRID_GAP),
+        modifier = Modifier.fillMaxSize()
     ) {
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(2),
-            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(GRID_GAP),
-            verticalArrangement = Arrangement.spacedBy(GRID_GAP),
-            modifier = Modifier.fillMaxSize()
-        ) {
-            // ── Carrusel de burbujas ──
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                Column {
-                    LazyRow(
-                        state = bubbleState,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        contentPadding = PaddingValues(horizontal = 2.dp, vertical = 6.dp)
-                    ) {
-                        // "Todo"
+        // ── Carrusel de burbujas ──
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            Column {
+                LazyRow(
+                    state = bubbleState,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    contentPadding = PaddingValues(horizontal = 2.dp, vertical = 6.dp)
+                ) {
+                    // "Todo"
+                    item {
+                        CategoryBubble(
+                            label = "Todo",
+                            count = ui.live.size,
+                            selected = ui.cur == null,
+                            color = Accent,
+                            icon = Icons.Outlined.Apps,
+                            onClick = { onSelectCat(null) }
+                        )
+                    }
+                    // Categorías del usuario
+                    items(roots.size) { i ->
+                        val c = roots[i]
+                        CategoryBubble(
+                            label = c.name,
+                            count = ui.countFor(ui.cats, c.id),
+                            selected = ui.cur == c.id,
+                            color = Color(c.color),
+                            icon = Glyphs.byKey(c.icon),
+                            onClick = { onSelectCat(c.id) }
+                        )
+                    }
+                    // Burbuja "Hechos"
+                    if (ui.doneItems.isNotEmpty()) {
                         item {
                             CategoryBubble(
-                                label = "Todo",
-                                count = ui.live.size,
-                                selected = ui.cur == null,
-                                color = Accent,
-                                icon = Icons.Outlined.Apps,
-                                onClick = { onSelectCat(null) }
+                                label = "Hechos",
+                                count = ui.doneItems.size,
+                                selected = false,
+                                color = Ok,
+                                icon = Icons.Filled.Check,
+                                onClick = onOpenDone
                             )
                         }
-                        // Categorías del usuario
-                        items(roots.size) { i ->
-                            val c = roots[i]
-                            CategoryBubble(
-                                label = c.name,
-                                count = ui.countFor(ui.cats, c.id),
-                                selected = ui.cur == c.id,
-                                color = Color(c.color),
-                                icon = Glyphs.byKey(c.icon),
-                                onClick = { onSelectCat(c.id) }
-                            )
-                        }
-                        // Burbuja "Hechos"
-                        if (ui.doneItems.isNotEmpty()) {
-                            item {
-                                CategoryBubble(
-                                    label = "Hechos",
-                                    count = ui.doneItems.size,
-                                    selected = false,
-                                    color = Ok,
-                                    icon = Icons.Filled.Check,
-                                    onClick = onOpenDone
-                                )
-                            }
-                        }
-                    }
-
-                    // Indicadores de puntos
-                    Spacer(Modifier.height(6.dp))
-                    DotIndicators(total = catIds.size, current = curIdx)
-                    Spacer(Modifier.height(8.dp))
-                }
-            }
-
-            // ── Subcategorías (chips, solo si hay) ──
-            val subs = ui.cur?.let { cur -> ui.cats.filter { it.parent == cur } }.orEmpty()
-            if (subs.isNotEmpty()) {
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    Row(
-                        Modifier.horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        CategoryChip("Todo", null, ui.sub == null) { onSelectSub(null) }
-                        subs.forEach { c ->
-                            CategoryChip(
-                                c.name, ui.countFor(ui.cats, c.id), ui.sub == c.id,
-                                icon = Glyphs.byKey(c.icon)
-                            ) { onSelectSub(c.id) }
-                        }
                     }
                 }
-            }
 
-            // ── Favoritos ──
-            if (favs.isNotEmpty() && ui.isHome) {
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    Column {
-                        SectionCaption("Favoritos", favs.size.toString())
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(GRID_GAP)) {
-                            items(favs, key = { it.id }) { l ->
-                                LinkCard(l, compact = true, onOpen = { onOpen(l) },
-                                    onToggleFav = { onFav(l) }, onToggleDone = { onDone(l) })
-                            }
-                        }
-                        Spacer(Modifier.height(8.dp))
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    }
-                }
+                // Indicadores de puntos
+                Spacer(Modifier.height(6.dp))
+                DotIndicators(total = catIds.size, current = curIdx)
+                Spacer(Modifier.height(8.dp))
             }
+        }
 
-            // ── Recientes ──
+        // ── Subcategorías (chips, solo si hay) ──
+        val subs = ui.cur?.let { cur -> ui.cats.filter { it.parent == cur } }.orEmpty()
+        if (subs.isNotEmpty()) {
             item(span = { GridItemSpan(maxLineSpan) }) {
-                val cat = ui.cats.find { it.id == (ui.sub ?: ui.cur) }
-                SectionCaption(cat?.name ?: "Recientes")
+                Row(
+                    Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    CategoryChip("Todo", null, ui.sub == null) { onSelectSub(null) }
+                    subs.forEach { c ->
+                        CategoryChip(
+                            c.name, ui.countFor(ui.cats, c.id), ui.sub == c.id,
+                            icon = Glyphs.byKey(c.icon)
+                        ) { onSelectSub(c.id) }
+                    }
+                }
             }
+        }
 
-            items(visible, key = { it.id }) { l ->
+        // ── Favoritos ──
+        if (favs.isNotEmpty() && ui.isHome) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Column {
+                    SectionCaption("Favoritos", favs.size.toString())
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(GRID_GAP)) {
+                        items(favs, key = { it.id }) { l ->
+                            LinkCard(l, compact = true, onOpen = { onOpen(l) },
+                                onToggleFav = { onFav(l) }, onToggleDone = { onDone(l) })
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                }
+            }
+        }
+
+        // ── Recientes ──
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            val cat = ui.cats.find { it.id == (ui.sub ?: ui.cur) }
+            SectionCaption(cat?.name ?: "Recientes")
+        }
+
+        items(visible, key = { it.id }) { l ->
+            LinkCard(l, onOpen = { onOpen(l) }, onToggleFav = { onFav(l) }, onToggleDone = { onDone(l) })
+        }
+
+        // ── Vacío ──
+        if (visible.isEmpty() && favs.isEmpty()) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                if (ui.links.isEmpty())
+                    EmptyState(Icons.Outlined.Link, "Todavía no hay nada aquí",
+                        "Pulsa + arriba para guardar tu primer link, o compártelo desde cualquier app con Linkora.")
+                else
+                    EmptyState(Icons.Outlined.CheckCircle, "Nada por aquí",
+                        if (ui.cur != null) "Esta categoría no tiene nada pendiente."
+                        else "Has marcado todo como hecho. Lo tienes en la pestaña Hechos.")
+            }
+        }
+
+        // ── Rescate del archivo ──
+        if (rescued.isNotEmpty()) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Column {
+                    Spacer(Modifier.height(10.dp))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    SectionCaption("Rescatado del archivo", trailing = {
+                        IconButton(onClick = onReroll, modifier = Modifier.size(30.dp)) {
+                            Icon(Icons.Outlined.Refresh, "Otros",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp))
+                        }
+                    })
+                }
+            }
+            items(rescued, key = { "old-${it.id}" }) { l ->
                 LinkCard(l, onOpen = { onOpen(l) }, onToggleFav = { onFav(l) }, onToggleDone = { onDone(l) })
             }
-
-            // ── Vacío ──
-            if (visible.isEmpty() && favs.isEmpty()) {
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    if (ui.links.isEmpty())
-                        EmptyState(Icons.Outlined.Link, "Todavía no hay nada aquí",
-                            "Pulsa + arriba para guardar tu primer link, o compártelo desde cualquier app con Linkora.")
-                    else
-                        EmptyState(Icons.Outlined.CheckCircle, "Nada por aquí",
-                            if (ui.cur != null) "Esta categoría no tiene nada pendiente."
-                            else "Has marcado todo como hecho. Lo tienes en la pestaña Hechos.")
-                }
-            }
-
-            // ── Rescate del archivo ──
-            if (rescued.isNotEmpty()) {
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    Column {
-                        Spacer(Modifier.height(10.dp))
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                        SectionCaption("Rescatado del archivo", trailing = {
-                            IconButton(onClick = onReroll, modifier = Modifier.size(30.dp)) {
-                                Icon(Icons.Outlined.Refresh, "Otros",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(18.dp))
-                            }
-                        })
-                    }
-                }
-                items(rescued, key = { "old-${it.id}" }) { l ->
-                    LinkCard(l, onOpen = { onOpen(l) }, onToggleFav = { onFav(l) }, onToggleDone = { onDone(l) })
-                }
-            }
-
-            item(span = { GridItemSpan(maxLineSpan) }) { Spacer(Modifier.height(20.dp)) }
         }
+
+        item(span = { GridItemSpan(maxLineSpan) }) { Spacer(Modifier.height(20.dp)) }
     }
 }
 

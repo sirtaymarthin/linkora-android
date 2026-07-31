@@ -23,6 +23,18 @@ object Meta {
         val ytThumb = YT.find(url)?.groupValues?.getOrNull(1)
             ?.let { "https://i.ytimg.com/vi/$it/hqdefault.jpg" }
 
+        // oEmbed como fallback: cubre Instagram, Twitter, TikTok sin scraping.
+        val oembed = runCatching {
+            val oUrl = "https://noembed.com/embed?url=${java.net.URLEncoder.encode(url, "UTF-8")}"
+            val doc = Jsoup.connect(oUrl).ignoreContentType(true).timeout(7000).get()
+            val json = org.json.JSONObject(doc.text())
+            Result(
+                title = json.optString("title").takeIf { it.isNotBlank() },
+                desc = json.optString("author_name").takeIf { it.isNotBlank() },
+                image = json.optString("thumbnail_url").takeIf { it.isNotBlank() }
+            )
+        }.getOrNull()
+
         val parsed = runCatching {
             val doc = Jsoup.connect(url)
                 .userAgent(UA)
@@ -43,7 +55,11 @@ object Meta {
             )
         }.getOrNull()
 
-        Result(parsed?.title, parsed?.desc, ytThumb ?: parsed?.image)
+        Result(
+            title = parsed?.title ?: oembed?.title,
+            desc = parsed?.desc ?: oembed?.desc,
+            image = ytThumb ?: parsed?.image ?: oembed?.image
+        )
     }
 
     private fun abs(base: String, maybeRelative: String): String = runCatching {
