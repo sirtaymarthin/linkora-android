@@ -23,18 +23,6 @@ object Meta {
         val ytThumb = YT.find(url)?.groupValues?.getOrNull(1)
             ?.let { "https://i.ytimg.com/vi/$it/hqdefault.jpg" }
 
-        // oEmbed como fallback: cubre Instagram, Twitter, TikTok sin scraping.
-        val oembed = runCatching {
-            val oUrl = "https://noembed.com/embed?url=${java.net.URLEncoder.encode(url, "UTF-8")}"
-            val doc = Jsoup.connect(oUrl).ignoreContentType(true).timeout(7000).get()
-            val json = org.json.JSONObject(doc.text())
-            Result(
-                title = json.optString("title").takeIf { it.isNotBlank() },
-                desc = json.optString("author_name").takeIf { it.isNotBlank() },
-                image = json.optString("thumbnail_url").takeIf { it.isNotBlank() }
-            )
-        }.getOrNull()
-
         val parsed = runCatching {
             val doc = Jsoup.connect(url)
                 .userAgent(UA)
@@ -55,10 +43,35 @@ object Meta {
             )
         }.getOrNull()
 
+        // oEmbed: cubre Vimeo, SoundCloud y algunos más
+        val oembed = if (parsed?.title == null && parsed?.image == null) runCatching {
+            val oUrl = "https://noembed.com/embed?url=${java.net.URLEncoder.encode(url, "UTF-8")}"
+            val oDoc = Jsoup.connect(oUrl).ignoreContentType(true).timeout(7000).get()
+            val j = org.json.JSONObject(oDoc.text())
+            Result(
+                title = j.optString("title").takeIf { it.isNotBlank() },
+                desc = j.optString("author_name").takeIf { it.isNotBlank() },
+                image = j.optString("thumbnail_url").takeIf { it.isNotBlank() }
+            )
+        }.getOrNull() else null
+
+        // Microlink: rendering completo, cubre Instagram y sitios que bloquean scrapers
+        val micro = if (parsed?.image == null && oembed?.image == null) runCatching {
+            val mUrl = "https://api.microlink.io/?url=${java.net.URLEncoder.encode(url, "UTF-8")}"
+            val mDoc = Jsoup.connect(mUrl).ignoreContentType(true).timeout(9000).get()
+            val d = org.json.JSONObject(mDoc.text()).optJSONObject("data")
+            Result(
+                title = d?.optString("title")?.takeIf { it.isNotBlank() },
+                desc = d?.optString("description")?.takeIf { it.isNotBlank() },
+                image = d?.optJSONObject("image")?.optString("url")?.takeIf { it.isNotBlank() }
+                    ?: d?.optJSONObject("logo")?.optString("url")?.takeIf { it.isNotBlank() }
+            )
+        }.getOrNull() else null
+
         Result(
-            title = parsed?.title ?: oembed?.title,
-            desc = parsed?.desc ?: oembed?.desc,
-            image = ytThumb ?: parsed?.image ?: oembed?.image
+            title = parsed?.title ?: oembed?.title ?: micro?.title,
+            desc = parsed?.desc ?: oembed?.desc ?: micro?.desc,
+            image = ytThumb ?: parsed?.image ?: oembed?.image ?: micro?.image
         )
     }
 

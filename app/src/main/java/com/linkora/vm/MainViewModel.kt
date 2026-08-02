@@ -8,6 +8,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.linkora.LinkoraApp
 import com.linkora.data.*
+import com.linkora.ui.ViewMode
+import com.linkora.ui.SortOrder
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.UUID
@@ -29,7 +31,9 @@ data class UiState(
     val undoSize: Int = 0,
     val redoSize: Int = 0,
     val message: String? = null,
-    val oldSeed: Int = 0
+    val oldSeed: Int = 0,
+    val viewMode: ViewMode = ViewMode.GRID,
+    val sortOrder: SortOrder = SortOrder.DATE_DESC
 ) {
     val live get() = links.filter { !it.done }
     val doneItems get() = links.filter { it.done }
@@ -55,7 +59,11 @@ data class UiState(
                         l.note.lowercase().contains(q) ||
                         (l.fileName ?: "").lowercase().contains(q) ||
                         (hostOf(l.url) ?: "").lowercase().contains(q)
-                }
+                }.let { r -> when (sortOrder) {
+                    SortOrder.DATE_DESC -> r
+                    SortOrder.DATE_ASC -> r.sortedBy { it.t }
+                    SortOrder.ALPHA -> r.sortedBy { it.displayTitle.lowercase() }
+                }}
             }
             Tab.DONE -> doneItems
             Tab.SETTINGS -> emptyList()
@@ -66,7 +74,12 @@ data class UiState(
                     val ids = listOf(cur) + cats.filter { it.parent == cur }.map { it.id }
                     ls = ls.filter { it.cat in ids }
                 }
-                if (isHome) ls.filter { !it.fav }.take(RECENT_MAX) else ls
+                val sorted = when (sortOrder) {
+                SortOrder.DATE_DESC -> ls
+                SortOrder.DATE_ASC -> ls.sortedBy { it.t }
+                SortOrder.ALPHA -> ls.sortedBy { it.displayTitle.lowercase() }
+            }
+            if (isHome) sorted.filter { !it.fav }.take(RECENT_MAX) else sorted
             }
         }
 
@@ -105,6 +118,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
         viewModelScope.launch {
+            // Cargar preferencias guardadas
+            dao.getPref("viewMode")?.let { v ->
+                runCatching { ViewMode.valueOf(v) }.getOrNull()?.let { m ->
+                    _ui.update { it.copy(viewMode = m) }
+                }
+            }
+            dao.getPref("sortOrder")?.let { v ->
+                runCatching { SortOrder.valueOf(v) }.getOrNull()?.let { o ->
+                    _ui.update { it.copy(sortOrder = o) }
+                }
+            }
             purgeExpired()
             Files.collectOrphans(ctx, dao)
             resolvePendingMeta()
@@ -118,7 +142,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun selectCat(id: String?) = _ui.update { it.copy(cur = id, sub = null) }
     fun selectSub(id: String?) = _ui.update { it.copy(sub = id) }
     fun setQuery(q: String) = _ui.update { it.copy(query = q) }
-    fun rerollRescued() = _ui.update { it.copy(oldSeed = it.oldSeed + 1) }
+    fun setViewMode(m: ViewMode) {
+        _ui.update { it.copy(viewMode = m) }
+        viewModelScope.launch { dao.setPref(Pref("viewMode", m.name)) }
+    }
+    fun setSortOrder(o: SortOrder) {
+        _ui.update { it.copy(sortOrder = o) }
+        viewModelScope.launch { dao.setPref(Pref("sortOrder", o.name)) }
+    }
+
+        fun rerollRescued() = _ui.update { it.copy(oldSeed = it.oldSeed + 1) }
     fun consumeMessage() = _ui.update { it.copy(message = null) }
     private fun say(m: String) = _ui.update { it.copy(message = m) }
 

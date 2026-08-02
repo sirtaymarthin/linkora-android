@@ -4,6 +4,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -81,6 +84,7 @@ fun CategoryManagerSheet(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CatRow(
     cat: Category,
@@ -117,7 +121,7 @@ private fun CatRow(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun CategoryFormSheet(
     initial: Category?,
@@ -151,7 +155,7 @@ private fun CategoryFormSheet(
             Spacer(Modifier.height(16.dp))
             Text("ICONO", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(8.dp))
-            FlowRowSimple {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Glyphs.pickable.forEach { key ->
                     val on = key == icon
                     Box(
@@ -174,7 +178,7 @@ private fun CategoryFormSheet(
             Spacer(Modifier.height(16.dp))
             Text("COLOR", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(8.dp))
-            FlowRowSimple {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Glyphs.palette.forEach { c ->
                     Box(
                         Modifier
@@ -195,7 +199,7 @@ private fun CategoryFormSheet(
                 Spacer(Modifier.height(16.dp))
                 Text("DENTRO DE", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(8.dp))
-                FlowRowSimple {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     CategoryChip("Ninguna", null, parent == null) { parent = null }
                     parents.forEach { p ->
                         CategoryChip(p.name, null, parent == p.id, icon = Glyphs.byKey(p.icon)) { parent = p.id }
