@@ -29,10 +29,23 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.linkora.data.LinkItem
+import com.linkora.data.Dashboard
+import com.linkora.data.DashCat
+import com.linkora.data.DashLink
+import com.linkora.data.Brands
 import com.linkora.vm.*
 import kotlin.math.abs
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.sp
 
 private val GAP = 13.dp
 
@@ -328,6 +341,175 @@ fun DoneScreen(ui: UiState, onOpen: (LinkItem) -> Unit, onFav: (LinkItem) -> Uni
         } else {
             EmptyState(Icons.Outlined.CheckCircle, "Nada marcado como hecho",
                 "Cuando marques algo, aparecerá aquí durante $DONE_TTL_DAYS días antes de eliminarse.")
+        }
+    }
+}
+
+
+
+/* ═══════════════════════ PERFILES ═══════════════════════ */
+@Composable
+fun ProfilesScreen(
+    ui: UiState,
+    onOpenDash: (String) -> Unit,
+    onCloseDash: () -> Unit,
+    onDeleteDash: (String) -> Unit,
+    onImport: () -> Unit
+) {
+    val dash = ui.activeDash
+    if (dash == null) {
+        // Lista de dashboards importados
+        Column(Modifier.fillMaxSize().padding(horizontal = 18.dp)) {
+            SectionCaption("Mis perfiles", ui.dashboards.size.toString())
+            if (ui.dashboards.isEmpty()) {
+                EmptyState(
+                    Icons.Outlined.People, "Sin perfiles importados",
+                    "Recibe un archivo .linkora de otra persona y impórtalo aquí como perfil de solo lectura."
+                )
+            } else {
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    items(ui.dashboards, key = { it.id }) { d ->
+                        DashboardCard(d, onOpen = { onOpenDash(d.id) }, onDelete = { onDeleteDash(d.id) })
+                    }
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+            Button(onClick = onImport, modifier = Modifier.fillMaxWidth().height(52.dp),
+                shape = MaterialTheme.shapes.small) {
+                Icon(Icons.Outlined.Download, null, Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Importar perfil (.linkora)", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+            }
+        }
+    } else {
+        // Contenido de un dashboard: solo lectura
+        val links = ui.dashLinks
+        val cats = ui.dashCats
+        val dashboard = ui.dashboards.find { it.id == dash }
+        Column(Modifier.fillMaxSize()) {
+            // Cabecera con botón volver
+            Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onCloseDash) {
+                    Icon(Icons.Outlined.ArrowBack, "Volver")
+                }
+                Spacer(Modifier.width(8.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(dashboard?.name ?: "Perfil", style = MaterialTheme.typography.titleMedium)
+                    Text("${links.size} enlaces · Solo lectura",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            // Categorías del dashboard como chips
+            if (cats.isNotEmpty()) {
+                var selCat by remember { mutableStateOf<String?>(null) }
+                Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 18.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    CategoryChip("Todo", links.size, selCat == null) { selCat = null }
+                    cats.filter { it.parent == null }.forEach { c ->
+                        val count = links.count { it.cat == c.id }
+                        CategoryChip(c.name, count, selCat == c.id,
+                            color = Color(c.color), icon = Glyphs.byKey(c.icon)) { selCat = c.id }
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
+                val filtered = if (selCat == null) links else links.filter { it.cat == selCat }
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(2),
+                    contentPadding = PaddingValues(horizontal = 18.dp),
+                    horizontalArrangement = Arrangement.spacedBy(GAP),
+                    verticalArrangement = Arrangement.spacedBy(GAP)
+                ) {
+                    items(filtered, key = { it.id }) { l ->
+                        DashLinkCard(l)
+                    }
+                }
+            } else {
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(2),
+                    contentPadding = PaddingValues(horizontal = 18.dp),
+                    horizontalArrangement = Arrangement.spacedBy(GAP),
+                    verticalArrangement = Arrangement.spacedBy(GAP)
+                ) {
+                    items(links, key = { it.id }) { l -> DashLinkCard(l) }
+                }
+            }
+        }
+    }
+}
+
+/** Tarjeta de un dashboard en la lista de perfiles */
+@Composable
+private fun DashboardCard(d: Dashboard, onOpen: () -> Unit, onDelete: () -> Unit) {
+    Card(onClick = onOpen, shape = MaterialTheme.shapes.medium,
+        elevation = CardDefaults.cardElevation(2.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+        Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(48.dp).clip(androidx.compose.foundation.shape.CircleShape)
+                .background(Accent), contentAlignment = Alignment.Center) {
+                Text(d.name.take(1).uppercase(), color = Color.White,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, fontSize = 20.sp)
+            }
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Text(d.name, style = MaterialTheme.typography.titleMedium)
+                Text("Importado · ${ago(d.importedAt)}", style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            IconButton(onClick = onDelete) {
+                Icon(Icons.Outlined.Delete, "Eliminar", tint = Danger)
+            }
+        }
+    }
+}
+
+/** Tarjeta de solo lectura para un link de un dashboard */
+@Composable
+private fun DashLinkCard(item: DashLink) {
+    val ctx = LocalContext.current
+    val brand = if (item.isFile) Brands.fileBrand(item.fileType) else Brands.byKey(item.brand)
+    Card(onClick = {
+        if (item.isFile) {
+            val f = Files.resolve(ctx, item.filePath)
+            if (f != null) runCatching {
+                val uri = androidx.core.content.FileProvider.getUriForFile(ctx, "${ctx.packageName}.files", f)
+                ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW)
+                    .setDataAndType(uri, item.fileType ?: "*/*")
+                    .addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION))
+            }
+        } else if (item.url != null) {
+            runCatching { ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(item.url))) }
+        }
+    },  shape = MaterialTheme.shapes.medium, elevation = CardDefaults.cardElevation(3.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+        Box(Modifier.fillMaxWidth().aspectRatio(1.6f)
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp))
+            .background(Color(brand.color))) {
+            val localThumb = Files.resolve(ctx, item.thumbPath ?: item.filePath)
+            if (localThumb != null && item.fileType?.startsWith("image/") == true) {
+                AsyncImage(localThumb, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            } else if (!item.image.isNullOrBlank()) {
+                AsyncImage(item.image, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            } else {
+                Icon(Glyphs.byKey(brand.icon), null, tint = Color.White,
+                    modifier = Modifier.align(Alignment.Center).size(36.dp))
+            }
+            // Badge de solo lectura
+            Box(Modifier.align(Alignment.TopEnd).padding(8.dp)
+                .clip(androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
+                .background(Color.Black.copy(0.5f)).padding(horizontal = 6.dp, vertical = 3.dp)) {
+                Text("Solo lectura", fontSize = 9.sp, color = Color.White,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+            }
+        }
+        Column(Modifier.padding(12.dp)) {
+            Text(item.displayTitle, style = MaterialTheme.typography.bodySmall.copy(
+                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold), maxLines = 2,
+                overflow = TextOverflow.Ellipsis)
+            Spacer(Modifier.height(3.dp))
+            Text(item.subtitle, style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

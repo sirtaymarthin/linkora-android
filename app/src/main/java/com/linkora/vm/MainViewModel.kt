@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.UUID
 
-enum class Tab { HOME, SEARCH, DONE, SETTINGS }
+enum class Tab { HOME, SEARCH, DONE, PROFILES, SETTINGS }
 
 const val RECENT_MAX = 12
 const val DONE_TTL_DAYS = 7
@@ -32,6 +32,10 @@ data class UiState(
     val redoSize: Int = 0,
     val message: String? = null,
     val oldSeed: Int = 0,
+    val dashboards: List<com.linkora.data.Dashboard> = emptyList(),
+    val activeDash: String? = null,
+    val dashCats: List<com.linkora.data.DashCat> = emptyList(),
+    val dashLinks: List<com.linkora.data.DashLink> = emptyList(),
     val viewMode: ViewMode = ViewMode.GRID,
     val sortOrder: SortOrder = SortOrder.DATE_DESC
 ) {
@@ -66,6 +70,7 @@ data class UiState(
                 }}
             }
             Tab.DONE -> doneItems
+            Tab.PROFILES -> emptyList()
             Tab.SETTINGS -> emptyList()
             Tab.HOME -> {
                 var ls = live
@@ -112,6 +117,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             dao.links().collect { list -> _ui.update { it.copy(links = list) } }
         }
         viewModelScope.launch {
+            dao.dashboards().collect { list -> _ui.update { it.copy(dashboards = list) } }
+        }
+        viewModelScope.launch {
             dao.cats().collect { list ->
                 if (list.isEmpty()) dao.putCats(DEFAULT_CATS)
                 _ui.update { it.copy(cats = list) }
@@ -133,6 +141,24 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             Files.collectOrphans(ctx, dao)
             resolvePendingMeta()
         }
+    }
+
+    // ─────────── dashboards ───────────
+    fun openDashboard(dashId: String) = viewModelScope.launch {
+        val cats = dao.dashCats(dashId)
+        val links = dao.dashLinks(dashId)
+        _ui.update { it.copy(activeDash = dashId, dashCats = cats, dashLinks = links, tab = Tab.PROFILES) }
+    }
+    fun closeDashboard() = _ui.update { it.copy(activeDash = null, dashCats = emptyList(), dashLinks = emptyList()) }
+    fun deleteDashboard(dashId: String) = viewModelScope.launch {
+        dao.removeDashLinks(dashId); dao.removeDashCats(dashId); dao.removeDashboard(dashId)
+        _ui.update { it.copy(activeDash = null, dashCats = emptyList(), dashLinks = emptyList()) }
+        say("Perfil eliminado")
+    }
+    fun importDashboard(src: android.net.Uri, authorName: String) = viewModelScope.launch {
+        runCatching { Backup.importAsDashboard(ctx, dao, src, authorName) }
+            .onSuccess { say("Perfil importado · $it enlaces") }
+            .onFailure { say("El archivo no es válido") }
     }
 
     // ─────────── navegación ───────────

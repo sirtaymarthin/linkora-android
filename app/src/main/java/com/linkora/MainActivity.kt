@@ -50,11 +50,15 @@ fun LinkoraRoot(shareIntent: Intent?, onShareConsumed: () -> Unit) {
     var catManager by remember { mutableStateOf(false) }
 
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { it?.let { vm.export(it) } }
+    var showDashNameDialog by remember { mutableStateOf<android.net.Uri?>(null) }
+    val dashImportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let { showDashNameDialog = it }
+    }
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let { vm.import(it) } }
 
     val title = when (ui.tab) {
         Tab.HOME -> ui.cats.find { it.id == (ui.sub ?: ui.cur) }?.name ?: "Home"
-        Tab.SEARCH -> "Buscar"; Tab.DONE -> "Hechos"; Tab.SETTINGS -> "Ajustes"
+        Tab.SEARCH -> "Buscar"; Tab.DONE -> "Hechos"; Tab.PROFILES -> "Perfiles"; Tab.SETTINGS -> "Ajustes"
     }
 
     Scaffold(
@@ -76,6 +80,9 @@ fun LinkoraRoot(shareIntent: Intent?, onShareConsumed: () -> Unit) {
                 NavigationBarItem(false, { vm.redo() }, enabled = ui.redoSize > 0,
                     icon = { BadgedBox(badge = { if (ui.redoSize > 0) Badge { Text("${ui.redoSize}") } }) { Icon(Icons.Outlined.Redo, null) } },
                     label = { Text("Rehacer", fontSize = 10.sp) })
+                NavigationBarItem(ui.tab == Tab.PROFILES, { vm.setTab(Tab.PROFILES) },
+                    icon = { BadgedBox(badge = { if (ui.dashboards.isNotEmpty()) Badge { Text("${ui.dashboards.size}") } }) { Icon(Icons.Outlined.People, null) } },
+                    label = { Text("Perfiles", fontSize = 10.sp) })
                 NavigationBarItem(ui.tab == Tab.SETTINGS, { vm.setTab(Tab.SETTINGS) }, icon = { Icon(Icons.Outlined.Settings, null) }, label = { Text("Ajustes", fontSize = 10.sp) })
             }
         }
@@ -92,6 +99,10 @@ fun LinkoraRoot(shareIntent: Intent?, onShareConsumed: () -> Unit) {
                     onShare = { shareItem(ctx, it, false) }, onDelete = vm::delete)
                 Tab.DONE -> DoneScreen(ui = ui, onOpen = { detail = it }, onFav = vm::toggleFav,
                     onDone = { vm.setDone(it, !it.done) }, onShare = { shareItem(ctx, it, false) }, onDelete = vm::delete)
+                Tab.PROFILES -> ProfilesScreen(ui = ui,
+                    onOpenDash = vm::openDashboard, onCloseDash = vm::closeDashboard,
+                    onDeleteDash = vm::deleteDashboard,
+                    onImport = { dashImportLauncher.launch(arrayOf("application/zip", "application/octet-stream")) })
                 Tab.SETTINGS -> SettingsScreen(ui = ui, version = BuildConfigVersion, onCategories = { catManager = true },
                     onExport = { exportLauncher.launch("linkora-copia.zip") }, onImport = { importLauncher.launch(arrayOf("application/zip")) }, onRetryMeta = vm::retryMeta)
             }
@@ -107,6 +118,26 @@ fun LinkoraRoot(shareIntent: Intent?, onShareConsumed: () -> Unit) {
         onSave = { url, note, cat -> vm.addUrl(url, note, cat); adding = false })
     if (catManager) CategoryManagerSheet(ui.cats, countOf = { ui.countFor(ui.cats, it) }, onDismiss = { catManager = false },
         onSave = vm::saveCat, onDelete = vm::deleteCat, onMove = vm::moveCat)
+
+    showDashNameDialog?.let { uri ->
+        var name by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { showDashNameDialog = null },
+            title = { Text("Nombre del perfil") },
+            text = {
+                OutlinedTextField(value = name, onValueChange = { name = it },
+                    placeholder = { Text("Ej: María - Oposiciones") },
+                    singleLine = true, shape = MaterialTheme.shapes.small,
+                    modifier = Modifier.fillMaxWidth())
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (name.isNotBlank()) { vm.importDashboard(uri, name.trim()); showDashNameDialog = null }
+                }) { Text("Importar") }
+            },
+            dismissButton = { TextButton(onClick = { showDashNameDialog = null }) { Text("Cancelar") } }
+        )
+    }
 }
 
 const val BuildConfigVersion = "v1.6.0"

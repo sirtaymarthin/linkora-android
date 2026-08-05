@@ -92,7 +92,7 @@ fun LinkCard(item: LinkItem, compact: Boolean = false, large: Boolean = false,
     val alpha by animateFloatAsState(if (item.done) 0.5f else 1f, label = "done")
     Card(onClick = onOpen,
         modifier = Modifier.then(when { compact -> Modifier.width(136.dp); else -> Modifier.fillMaxWidth() }).alpha(alpha),
-        shape = MaterialTheme.shapes.medium, elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        shape = MaterialTheme.shapes.medium, elevation = CardDefaults.cardElevation(defaultElevation = 3.dp, pressedElevation = 6.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Box(Modifier.fillMaxWidth().aspectRatio(if (compact) 1f else if (large) 1.78f else 1.6f)
             .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp)).background(Color(brand.color))) {
@@ -122,7 +122,7 @@ fun LinkRow(item: LinkItem, onOpen: () -> Unit, onToggleFav: () -> Unit, onShare
     val alpha by animateFloatAsState(if (item.done) 0.5f else 1f, label = "done")
     Card(onClick = onOpen, modifier = Modifier.fillMaxWidth().alpha(alpha), shape = MaterialTheme.shapes.small,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(0.dp)) {
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.5.dp)) {
         Row(Modifier.fillMaxWidth().padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(56.dp).clip(MaterialTheme.shapes.small).background(Color(brand.color)), contentAlignment = Alignment.Center) { Thumb(item, ctx, brand, small = true) }
             Spacer(Modifier.width(12.dp))

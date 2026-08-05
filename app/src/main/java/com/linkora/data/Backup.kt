@@ -68,6 +68,69 @@ object Backup {
             links.length()
         }
 
+
+    /** Importa un .linkora como dashboard de solo lectura. */
+    suspend fun importAsDashboard(ctx: Context, dao: LinkoraDao, src: Uri, authorName: String): Int =
+        withContext(Dispatchers.IO) {
+            var json: String? = null
+            ctx.contentResolver.openInputStream(src)!!.use { input ->
+                ZipInputStream(input.buffered()).use { zip ->
+                    var e: ZipEntry? = zip.nextEntry
+                    while (e != null) {
+                        if (e.name == "data.json") json = zip.readBytes().decodeToString()
+                        // Copiar archivos del dashboard al almacenamiento local
+                        if (name.startsWith("media/") || name.startsWith("thumbs/")) {
+                            val out = java.io.File(ctx.filesDir, name)
+                            out.parentFile?.mkdirs()
+                            out.outputStream().use { zip.copyTo(it) }
+                        }
+                        zip.closeEntry()
+                        e = zip.nextEntry
+                    }
+                }
+            }
+            val root = JSONObject(json ?: error("copia sin data.json"))
+            val dashId = java.util.UUID.randomUUID().toString()
+            dao.putDashboard(Dashboard(id = dashId, name = authorName, author = authorName))
+
+            val cats = root.optJSONArray("cats") ?: JSONArray()
+            for (i in 0 until cats.length()) {
+                val o = cats.getJSONObject(i)
+                dao.putDashCat(DashCat(
+                    id = "${dashId}_${o.getString("id")}",
+                    dashId = dashId,
+                    name = o.optString("name", "Sin nombre"),
+                    icon = o.optString("icon", "star"),
+                    color = o.optLong("color", 0xFF6C63FF),
+                    parent = o.optString("parent", "").takeIf { it.isNotBlank() }?.let { "${dashId}_$it" },
+                    pos = o.optInt("pos")
+                ))
+            }
+            val links = root.optJSONArray("links") ?: JSONArray()
+            for (i in 0 until links.length()) {
+                val o = links.getJSONObject(i)
+                dao.putDashLink(DashLink(
+                    id = "${dashId}_${o.getString("id")}",
+                    dashId = dashId,
+                    kind = o.optString("kind", KIND_URL),
+                    url = o.optString("url", "").takeIf { it.isNotBlank() },
+                    title = o.optString("title", "").takeIf { it.isNotBlank() },
+                    desc = o.optString("desc", "").takeIf { it.isNotBlank() },
+                    image = o.optString("image", "").takeIf { it.isNotBlank() },
+                    brand = o.optString("brand", "").takeIf { it.isNotBlank() },
+                    fileName = o.optString("fileName", "").takeIf { it.isNotBlank() },
+                    fileType = o.optString("fileType", "").takeIf { it.isNotBlank() },
+                    fileSize = o.optLong("fileSize"),
+                    filePath = o.optString("filePath", "").takeIf { it.isNotBlank() },
+                    thumbPath = o.optString("thumbPath", "").takeIf { it.isNotBlank() },
+                    note = o.optString("note", ""),
+                    cat = o.optString("cat", "").takeIf { it.isNotBlank() }?.let { "${dashId}_$it" },
+                    t = o.optLong("t", System.currentTimeMillis())
+                ))
+            }
+            links.length()
+        }
+
     private fun linkToJson(l: LinkItem) = JSONObject().apply {
         put("id", l.id); put("kind", l.kind); put("url", l.url ?: JSONObject.NULL)
         put("title", l.title ?: JSONObject.NULL); put("desc", l.desc ?: JSONObject.NULL)
